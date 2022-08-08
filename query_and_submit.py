@@ -6,12 +6,22 @@ import subprocess
 import yaml
 
 
+def load_config(filename):
+    with open(filename) as f:
+        return yaml.safe_load(f)
+
+
 def process_endpoint_block(
     endpoint_config, interval_start, interval_end, metrics_token
 ):
+    metrics = query_metrics(endpoint_config["queries"], interval_start, interval_end)
+    post_metrics(endpoint_config["endpoint"], interval_start, interval_end, metrics)
+
+
+def query_metrics(query_config, interval_start, interval_end):
     metrics = {}
 
-    for metric_name, query in config["queries"].items():
+    for metric_name, query in query_config.items():
         output = json.loads(
             subprocess.check_output(
                 [
@@ -25,8 +35,12 @@ def process_endpoint_block(
         )
         metrics[metric_name] = output[0]["value"][1] if output else 0
 
+    return metrics
+
+
+def post_metrics(endpoint, interval_start, interval_end, metrics):
     requests.post(
-        url=config["endpoint"],
+        url=endpoint,
         json={
             "startInterval": interval_start,
             "endInterval": interval_end,
@@ -39,9 +53,7 @@ def process_endpoint_block(
 
 
 if __name__ == "__main__":
-    with open("/opt/config.yaml") as f:
-        config = yaml.safe_load(f)
-
+    config = load_config("/opt/config.yaml")
     metrics_token = os.environ.get("METRICS_WEBHOOK_TOKEN")
     one_hour_ago = dt.datetime.now() - dt.timedelta(hours=1)
     interval_start = one_hour_ago.strftime("%Y-%m-%dT%H:00:00Z")
