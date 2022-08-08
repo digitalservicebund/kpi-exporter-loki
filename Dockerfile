@@ -1,6 +1,6 @@
 FROM python:3.10.5-alpine
 
-ENV LOKI_VERSION 1.4.1
+ENV LOKI_VERSION 2.4.2
 
 RUN apk update \
  && apk add --no-cache jq coreutils \
