@@ -20,9 +20,14 @@ class Config:
         self.interval_end = one_hour_ago.strftime("%Y-%m-%dT%H:59:59Z")
 
 
-def load_endpoint(filename):
+def load_endpoints(filename):
     with open(filename) as f:
         return yaml.safe_load(f)
+
+
+def process_endpoints(endpoints, config):
+    for endpoint in endpoints:
+        process_endpoint(endpoint, config)
 
 
 def process_endpoint(endpoint, config):
@@ -67,5 +72,5 @@ def post_metrics(endpoint, config, metrics):
 
 if __name__ == "__main__":
     config = Config()
-    endpoint = load_endpoint("/opt/config.yaml")
-    process_endpoint(endpoint, config)
+    endpoints = load_endpoints("/opt/config.yaml")
+    process_endpoints(endpoints, config)
