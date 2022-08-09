@@ -65,6 +65,13 @@ def query_metric_counts(endpoint, config):
 
 def query_rows_from_labels(endpoint, config):
     query = endpoint["query"]
+    intervals = {
+        "startInterval": config.interval_start,
+        "endInterval": config.interval_end,
+    }
+    label_mapping = endpoint["labelMapping"]
+    timestamp_mapping = endpoint.get("timestampMapping")
+
     logcli_output = subprocess.check_output(
         [
             "/logcli-linux-amd64",
@@ -76,16 +83,10 @@ def query_rows_from_labels(endpoint, config):
             config.interval_start,
             "--to",
             config.interval_end_excl,
+            *[f"--include-label={label}" for label in label_mapping],
             f'{query} | line_format ""',
         ]
     )
-
-    intervals = {
-        "startInterval": config.interval_start,
-        "endInterval": config.interval_end,
-    }
-    label_mapping = endpoint["labelMapping"]
-    timestamp_mapping = endpoint.get("timestampMapping")
 
     data = []
     for line in logcli_output.decode("utf-8").strip().split("\n"):
