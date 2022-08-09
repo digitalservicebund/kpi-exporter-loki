@@ -85,12 +85,12 @@ def query_rows_from_labels(endpoint, config):
         "endInterval": config.interval_end,
     }
     label_mapping = endpoint["labelMapping"]
-    timestamp_mapping = endpoint["timestampMapping"]
+    timestamp_mapping = endpoint.get("timestampMapping")
 
     data = []
     for line in logcli_output.decode("utf-8").strip().split("\n"):
         row = json.loads(line)
-        timestamp = {timestamp_mapping: row["timestamp"]} if "timestamp" in row else {}
+        timestamp = {timestamp_mapping: row["timestamp"]} if timestamp_mapping else {}
         data.append(
             {
                 **{
