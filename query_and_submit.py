@@ -10,14 +10,17 @@ from dataclasses import dataclass
 
 @dataclass
 class Config:
-    interval_start: str = ''
-    interval_end: str = ''
+    interval_start: str = ""
+    interval_end: str = ""
+    interval_end_excl: str = ""
     metrics_token: str = os.environ.get("METRICS_WEBHOOK_TOKEN")
 
     def __post_init__(self):
-        one_hour_ago = dt.datetime.now() - dt.timedelta(hours=1)
+        now = dt.datetime.now()
+        one_hour_ago = now - dt.timedelta(hours=1)
         self.interval_start = one_hour_ago.strftime("%Y-%m-%dT%H:00:00Z")
         self.interval_end = one_hour_ago.strftime("%Y-%m-%dT%H:59:59Z")
+        self.interval_end_excl = now.strftime("%Y-%m-%dT%H:00:00Z")
 
 
 def load_endpoints(filename):
@@ -31,14 +34,15 @@ def process_endpoints(endpoints, config):
 
 
 def process_endpoint(endpoint, config):
-    metrics = query_metrics(endpoint["queries"], config)
-    post_metrics(endpoint["endpoint"], config, metrics)
+    query_function = QUERY_FUNCTIONS_BY_TYPE[endpoint["type"]]
+    data = query_function(endpoint, config)
+    post_data(endpoint["endpoint"], config, data)
 
 
-def query_metrics(queries, config):
+def query_metric_counts(endpoint, config):
     metrics = {}
 
-    for metric_name, query in queries.items():
+    for metric_name, query in endpoint["queries"].items():
         output = json.loads(
             subprocess.check_output(
                 [
@@ -52,17 +56,66 @@ def query_metrics(queries, config):
         )
         metrics[metric_name] = output[0]["value"][1] if output else 0
 
-    return metrics
+    return {
+        "startInterval": config.interval_start,
+        "endInterval": config.interval_end,
+        **metrics,
+    }
 
 
-def post_metrics(endpoint, config, metrics):
+def query_rows_from_labels(endpoint, config):
+    query = endpoint["query"]
+    logcli_output = subprocess.check_output(
+        [
+            "/logcli-linux-amd64",
+            "query",
+            "--quiet",
+            "--output=jsonl",
+            "--limit=500000",
+            "--from",
+            config.interval_start,
+            "--to",
+            config.interval_end_excl,
+            f'{query} | line_format ""',
+        ]
+    )
+
+    intervals = {
+        "startInterval": config.interval_start,
+        "endInterval": config.interval_end,
+    }
+    label_mapping = endpoint["labelMapping"]
+    timestamp_mapping = endpoint["timestampMapping"]
+
+    data = []
+    for line in logcli_output.decode("utf-8").strip().split("\n"):
+        row = json.loads(line)
+        timestamp = {timestamp_mapping: row["timestamp"]} if "timestamp" in row else {}
+        data.append(
+            {
+                **{
+                    label_mapping[label]: value
+                    for label, value in row["labels"].items()
+                    if label in label_mapping
+                },
+                **timestamp,
+                **intervals,
+            }
+        )
+
+    return data
+
+
+QUERY_FUNCTIONS_BY_TYPE = {
+    "metricCounts": query_metric_counts,
+    "rowsFromLabels": query_rows_from_labels,
+}
+
+
+def post_data(endpoint, config, data):
     response = requests.post(
         url=endpoint,
-        json={
-            "startInterval": config.interval_start,
-            "endInterval": config.interval_end,
-            **metrics,
-        },
+        json=data,
         headers={
             "xc-token": config.metrics_token,
         },
