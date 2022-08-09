@@ -89,7 +89,9 @@ def query_rows_from_labels(endpoint, config):
     )
 
     data = []
-    for line in logcli_output.decode("utf-8").strip().split("\n"):
+    for line in logcli_output.decode("utf-8").split("\n"):
+        if not line:
+            continue
         row = json.loads(line)
         timestamp = {timestamp_mapping: row["timestamp"]} if timestamp_mapping else {}
         data.append(
