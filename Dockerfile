@@ -1,4 +1,4 @@
-FROM python:3.10.5-alpine
+FROM python:3.13.6-alpine3.22
 
 ENV LOKI_VERSION 2.4.2
 
